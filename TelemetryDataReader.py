@@ -13,6 +13,7 @@ class TelemetryDataReader:
         self.data_converter = DataConverter()
         self.space_packets = SpacePacketDefinitions()
 
+    
     def get_space_packets_df_from_file(self, file_path: str, transform_binary_values: bool = True) -> pd.DataFrame:
         """Easier way to get the df directly from the file_path."""
         space_packets = self.read_file_and_get_space_packets(file_path)
@@ -33,7 +34,7 @@ class TelemetryDataReader:
 
     def create_df_from_space_packets(self, packets: list[dict], transform_binary_values: bool = True) -> pd.DataFrame:
         """Allows the space packets to be displayes as df format, also it performs transformations to the binary values of
-        a space packet."""
+        a space packet. When asked to transform for binary values the function will also adjust for segmented packets."""
         df = pd.DataFrame(packets)
         if transform_binary_values:
             df['version_number'] = df['version_number'].apply(lambda x: int(x, 2))
@@ -41,8 +42,58 @@ class TelemetryDataReader:
             df['seq_flags'] = df['seq_flags'].apply(lambda x: hex(int(x, 2)))
             df['pkt_data_length'] = df['pkt_data_length'].apply(lambda x: hex(int(x, 2)))
             df['secondary_header'] = df['secondary_header'].apply(self.data_converter.convert_64bit_binary_to_datetime)
-            
+            df = self.adjust_df_for_segmented_packets(df)
         return df
+    
+    def adjust_df_for_segmented_packets(self, df: pd.DataFrame) -> pd.DataFrame:
+        """This is specific to iterate over the main df and adjusts the packtes that have a flag for segmented SPs.
+        0x3 is a unsegmented message, 0x1 is the first message, 0x0 is the middle, and 0x2 is the final segment.
+        The way the function works is assuming the packets are in the right order (for each apid) from the file provided, and if it happens
+        to have duplicate first or last values, it will skip one of the values. 
+        """
+        new_df_adjusted = pd.DataFrame()
+        for apid in df.apid.unique():
+            inner_df = (df.query(f"""apid == '{apid}'""")).copy(deep=True).reset_index(drop=True)
+
+            if ['0x1'] not in inner_df['seq_flags'].unique():
+                new_df_adjusted = pd.concat([new_df_adjusted, inner_df], ignore_index=True)
+            else:
+                start_of_message = False
+                new_rows = pd.DataFrame(columns=df.columns)
+                new_row_aux = pd.DataFrame(columns=df.columns)
+            
+                for i in range(0, len(inner_df)):
+                    current_seq_flags = inner_df.iloc[i,:]['seq_flags']
+                    if str(current_seq_flags) == '0x1' and not start_of_message:
+                        start_of_message = True
+                        new_row_aux.loc[i] = inner_df.iloc[i,:].copy(deep=True)
+                    elif str(current_seq_flags) == '0x0' and start_of_message:
+                        middle_data = inner_df.iloc[i,:]['data']
+                        middle_pkt_data_length = inner_df.iloc[i,:]['pkt_data_length']
+                        
+                        current_pkt_data_length = new_row_aux['pkt_data_length'].item()
+                        new_row_aux['pkt_data_length'] = hex(int(current_pkt_data_length, 16) + int(middle_pkt_data_length, 16))
+                        
+                        current_data = new_row_aux['data'].item()
+                        new_row_aux['data'] = (current_data + middle_data)
+                    elif str(current_seq_flags) == '0x2' and start_of_message:
+                        start_of_message = False
+                        final_data = inner_df.iloc[i,:]['data']
+                        final_pkt_data_length = inner_df.iloc[i,:]['pkt_data_length']
+                        
+                        current_pkt_data_length = new_row_aux['pkt_data_length'].item()
+                        new_row_aux['pkt_data_length'] = hex(int(current_pkt_data_length, 16) + int(final_pkt_data_length, 16))
+                        
+                        current_data = new_row_aux['data'].item()
+                        new_row_aux['data'] = (current_data + final_data)
+
+                        new_row_aux['seq_flags'] = '0x3'
+                        new_rows.loc[i] = new_row_aux.iloc[0].copy(deep = True)
+                        new_row_aux = pd.DataFrame(columns=df.columns)
+                    
+                new_df_adjusted = pd.concat([new_df_adjusted, new_rows.dropna(axis=1)], ignore_index=True, axis=0)
+        
+        return new_df_adjusted
     
     def read_hex_file_to_hex_str(self, file_path: str) -> str:
         """This will take a file with hex strings and join them all into one line."""
