@@ -1,0 +1,35 @@
+body {
+    background-image: url('/assets/background_second.png');
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+}
+
+@font-face {
+    font-family: 'GoodTimes';
+    src: url('/assets/good_times_rg.otf') format('opentype');
+}
+
+h1 {
+    font-family: 'GoodTimes', sans-serif;
+}
+
+.header-title{
+    padding: 5px;
+    background-color: rgba(0, 0,0,0.5);
+    border-radius: 2px;
+    /* width: 90%; */
+}
+
+#apid-selection{
+
+    padding: 10px;
+    width: 30%;
+}
+
+#fields-selection{
+
+    padding: 10px;
+    width: 30%;
+}
+
