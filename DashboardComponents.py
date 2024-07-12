@@ -1,0 +1,3 @@
+
+class DashboardComponents:
+    pass

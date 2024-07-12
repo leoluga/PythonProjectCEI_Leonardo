@@ -3,33 +3,30 @@ import pandas as pd
 
 from DataConverter import DataConverter
 from SpacePacketDefinitions import SpacePacketDefinitions
+from FileRepository import FileRepository
 
+TELEMETRY_FOLDER_PATH = "decoded_satcs_dump"
 class TelemetryDataReader:
-
+    file_repo: FileRepository
     data_converter: DataConverter 
     space_packets: SpacePacketDefinitions
 
     def __init__(self) -> None:
+        self.file_repo = FileRepository(TELEMETRY_FOLDER_PATH)
         self.data_converter = DataConverter()
         self.space_packets = SpacePacketDefinitions()
 
-    
-    def get_space_packets_df_from_file(self, file_path: str, transform_binary_values: bool = True) -> pd.DataFrame:
+    def get_space_packets_df_from_file(self, file_name: str, transform_binary_values: bool = True) -> pd.DataFrame:
         """Easier way to get the df directly from the file_path."""
-        space_packets = self.read_file_and_get_space_packets(file_path)
+        space_packets = self.read_file_and_get_space_packets(file_name)
         df = self.create_df_from_space_packets(space_packets, transform_binary_values)
         return df
     
-    def read_file_and_get_space_packets(self, file_path: str) -> list[dict]:
+    def read_file_and_get_space_packets(self, file_name: str) -> list[dict]:
         """Attempts to read a normal hex file, if error it will read as if it were a binary file.
         After being able to read it will parse the hex string into space packets format."""
-        try:
-            hex_data = self.read_hex_file_to_hex_str(file_path)
-        except UnicodeDecodeError:
-            hex_data = self.binary_file_to_hex(file_path)
-        
+        hex_data = self.file_repo.read_telemetry_dump_file(file_name)
         packets = self.read_through_hex_str(hex_data)
-
         return packets
 
     def create_df_from_space_packets(self, packets: list[dict], transform_binary_values: bool = True) -> pd.DataFrame:
@@ -95,19 +92,6 @@ class TelemetryDataReader:
         
         return new_df_adjusted
     
-    def read_hex_file_to_hex_str(self, file_path: str) -> str:
-        """This will take a file with hex strings and join them all into one line."""
-        with open(file_path, 'r') as f:
-            all_lines = ''.join(line.strip() for line in f)
-        return all_lines
-    
-    def binary_file_to_hex(self, file_path: str) -> str:
-        """This will read a binary format file and turn it into a one line hex string."""
-        with open(file_path, 'rb') as file:
-            binary_data = file.read()
-        hex_data = binary_data.hex()
-        return hex_data
-
     def read_through_hex_str(self, hex_string: str) -> list[dict]:
         """Goes through all the binary string and reads all the space packtes inside it."""
         binary_string = self.data_converter.hex_to_binary(hex_string)
@@ -126,7 +110,6 @@ class TelemetryDataReader:
         the space packet and dinamically adjusts the bit size. Returns the space packet in a dict format with the components
         as binary strings.
         """
-
         number_of_bits_dict = self.space_packets.main_bits_dict.copy()
         
         space_packet_dict = dict()
@@ -136,7 +119,6 @@ class TelemetryDataReader:
             space_packet_dict[component], pointer = self.read_through_binary_str_and_update_pointer(binary_string, pointer, number_of_bits_dict[component])
 
         space_packet_bit_size = sum(number_of_bits_dict.values())
-
         return space_packet_dict, space_packet_bit_size
 
     def adjust_bit_size_for_variable_components(self, component: str, number_of_bits_dict: dict, space_packet_dict: dict) -> int:
@@ -169,4 +151,4 @@ class TelemetryDataReader:
         component_binary = binary_string[pointer:(pointer+number_of_bits)]
         new_pointer = pointer+number_of_bits
 
-        return component_binary, new_pointer 
+        return component_binary, new_pointer

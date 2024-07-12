@@ -98,7 +98,6 @@ app.layout = html.Div([
         className='header-title',
         children='Sports Mission Dashboard',
         style={'textAlign':'center','color': '#FFFFFF'}
-             
     ),
     dcc.Dropdown(available_apids, id='apid-selection'),
     dcc.Dropdown(['n/a'], id='fields-selection', searchable=True),
