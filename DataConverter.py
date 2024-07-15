@@ -54,6 +54,7 @@ class DataConverter:
         if conversion_formula_for_adc is None or conversion_formula_for_adc == 'N/A':
                 return None
         input_16bit = int(binary_str, 2)
+        
         # Use mask to extract the bit ADC value from the 16-bit input (lower bits)
         if data_type == '12-bit ADC':
             adc_value = input_16bit & 0x0FFF

@@ -1,10 +1,6 @@
-from dash import Dash, html, dcc, callback, Output, Input, State
-from dash.exceptions import PreventUpdate
+from dash import html, dcc
 import plotly.graph_objects as go
 import pandas as pd
-import copy
-
-
 class DashboardComponents:
 
     @staticmethod
@@ -61,6 +57,8 @@ class DashboardComponents:
                 ),
             ),
             autosize=False,
+            width=400,
+            height=200,
             margin=dict(
                 autoexpand=False,
                 l=35,

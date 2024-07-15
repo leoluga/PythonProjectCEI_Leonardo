@@ -17,10 +17,10 @@ class TelemetryDataReader:
         self.data_converter = DataConverter()
         self.space_packets = SpacePacketDefinitions()
 
-    def get_space_packets_df_from_file(self, file_name: str, transform_binary_values: bool = True) -> pd.DataFrame:
+    def get_space_packets_df_from_file(self, file_name: str, main_dd_df: pd.DataFrame, transform_binary_values: bool = True) -> pd.DataFrame:
         """Easier way to get the df directly from the file_path."""
         space_packets = self.read_file_and_get_space_packets(file_name)
-        df = self.create_df_from_space_packets(space_packets, transform_binary_values)
+        df = self.create_df_from_space_packets(space_packets, main_dd_df,transform_binary_values)
         return df
     
     def read_file_and_get_space_packets(self, file_name: str) -> list[dict]:
@@ -244,6 +244,24 @@ class TelemetryDataReader:
             new_df = new_df.rename(columns={'secondary_header':'time'}).set_index('time')
 
         return new_df.drop(columns=['index'])
+
+    def query_main_dd_df_for_apid_data_name(self, apids: str | list[str], main_dd_df: pd.DataFrame) -> str | list[str]:
+        """This is a function method to get the corresponding names of given apid's. If input is a list the output will
+        be a list with all names, if input is a str output will be the single data name str."""
+        is_input_str = False
+        if isinstance(apids, str):
+            apids = [apids]
+            is_input_str = True
+
+        dict_mapper = main_dd_df[['apid', 'data_name']].set_index('apid')['data_name'].to_dict()
+        
+        assert all(apid in dict_mapper for apid in apids), "Not all values are present in the main_dd_df apid!"
+
+        mapped_data_names = [dict_mapper.get(apid, None) for apid in apids]
+        if is_input_str:
+            mapped_data_names = mapped_data_names[0]
+        
+        return mapped_data_names
 
     def is_datetime_column(self, df: pd.DataFrame, column_name: str):
         assert column_name in df.columns

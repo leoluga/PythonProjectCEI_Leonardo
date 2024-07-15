@@ -33,7 +33,7 @@ body {
     align-items: center;
     justify-content: space-between;
     background-color: rgba(0, 0, 0, 0);
-    padding: 10px
+    padding: 5px
 }
 
 .dashboard-header-logo {
@@ -69,6 +69,12 @@ h1 {
     align-content: flex-start;
 }
 
+.inputs-and-content-div{
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+}
+
 .dashboard-inputs {
     margin: 10px;
     padding: 10px;
@@ -77,26 +83,39 @@ h1 {
     flex-direction: column;
     flex-wrap: wrap;
     justify-content: space-around;
-    gap: 10px;
+    gap: 2px;
     background-color: rgba(0, 0, 0, 0.5);
+    max-width: 300px;
 }
 .dashboard-inputs:hover{
     box-shadow: 0 4px 8px 0 rgba(8, 128, 176, 0.628);
     box-shadow: 0 8px 16px 0 rgba(158, 240, 246, 0.3);
 }
 
-.upper-dashboard-inputs, .lower-dashboard-inputs {
+.upper-dashboard-inputs{
     margin: 0px;
     padding: 0px;
     border-radius: 5px;
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     flex-wrap: wrap;
     justify-content: space-around;
     gap: 10px;
     background-color: rgba(0, 0, 0, 0);
+    min-width: 300px;
 }
 
+.lower-dashboard-inputs {
+    margin: 0px;
+    padding: 0px;
+    border-radius: 5px;
+    display: flex;
+    flex-direction: column;
+    flex-wrap: wrap;
+    justify-content: space-around;
+    gap: 20px;
+    background-color: rgba(0, 0, 0, 0);
+}
 
 .single-input-div{
     display: flex;
@@ -125,9 +144,9 @@ h1 {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
-    margin: 10px;
+    margin: 5px;
     justify-content: space-around;
-    gap: 10px;
+    gap: 2px;
 }
 
 .main-card {
@@ -137,7 +156,8 @@ h1 {
     padding: 0.5rem;
     border-radius: 5px;
     background-color: rgba(0, 0, 0, 0.7);
-    
+    max-width: 400px;
+    max-height: 210px;
 }
 
 .main-card:hover{
@@ -146,26 +166,37 @@ h1 {
 }
 
 .main-card-label{
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
     padding: 0;
     margin-bottom: 5px;
-    font-size: medium;
+    font-size: small;
     color: aliceblue;
     font-family: 'GoodTimes', sans-serif;
     text-shadow:
     1px 2px 1px rgb(16, 23, 23);
+    width: 100%;
 }
 
+
 .gif-loading .dash-spinner {
+    visibility: hidden; /* Hide the default spinner */
+}
+
+.gif-loading::after {
+    content: "";
     background-image: url("/assets/loading.gif");
     background-size: contain;
     background-repeat: no-repeat;
-    width: 60px; 
-    height: 60px; 
-    margin: 0 auto; 
-} 
-
-.gif-loading .dash-spinning {
-    visibility: visible;
+    width: 80px; 
+    height: 80px; 
+    display: block;
+    margin: 0 auto;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     opacity: 1;
-} 
-
+}

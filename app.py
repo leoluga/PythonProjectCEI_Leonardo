@@ -1,5 +1,6 @@
-from dash import Dash, html, dcc, callback, Output, Input, State
+from dash import Dash, html, dcc, callback, Output, Input, State, ALL
 from dash.exceptions import PreventUpdate
+
 import pandas as pd
 
 from CatalogDataReader import CatalogDataReader
@@ -46,6 +47,7 @@ upper_inputs_layout = html.Div([
         dcc.Store(id = "main-telemetry-data"),
         dcc.Store(id = "space-packets-data"),
         dcc.Store(id = "fields-apid-data"),
+        dcc.Store(id = "fields-apid-data-teste"),
         html.Div([
             html.Div("Catalog File", className="single-input-label"),
             dcc.Dropdown(
@@ -61,31 +63,21 @@ upper_inputs_layout = html.Div([
             dcc.Dropdown(
                 id='dump-file-selection', 
                 options = telemetry_repo.list_files(),
-                searchable=True,
             ),
         ], className="single-input-div"),
         html.Div([
             html.Div("Select APID", className="single-input-label"),
             dcc.Dropdown(
                 id='apid-selection', 
-                searchable=True,
+                multi=True
             ),
         ], className="single-input-div"),
     ], 
     className="upper-dashboard-inputs"
 )
 
-lower_inputs_layout = html.Div([
-        html.Div([
-            html.Div("Select Fields to Display", className="single-input-label"),
-            dcc.Dropdown(
-                id='fields-selection', 
-                searchable=True, 
-                multi=True,
-                maxHeight=300 
-            ),
-        ], className="single-input-div"),
-    ], 
+lower_inputs_layout = html.Div(
+    id="fields-inputs",
     className="lower-dashboard-inputs"
 )
 
@@ -97,12 +89,14 @@ inputs_layout = html.Div([
 main_layout = html.Div([
     html.Div(className="background-overlay"),
     header_layout,
-    dcc.Loading(
-            [inputs_layout],
-            overlay_style={"visibility":"visible", "opacity": .1, "backgroundColor": "grey"},
-            className='gif-loading'
-        ),
-    html.Div(id="main-dashboard-content", className="main-content-div")
+    html.Div([
+        dcc.Loading(
+                [inputs_layout],
+                overlay_style={"visibility":"visible", "opacity": .1, "backgroundColor": "grey"},
+                className='gif-loading'
+            ),
+        html.Div(id="main-dashboard-content", className="main-content-div"),
+    ], className = "inputs-and-content-div"),
 ], className="dashboard-div")
 
 app.layout = main_layout
@@ -122,13 +116,12 @@ def update_stored_data(catalog_file_name):
         "main_tm_df": main_tm_df.to_json(orient='split', date_format='iso'),
         "main_dd_df": main_dd_df.to_json(orient='split', date_format='iso')
     }
-    print("updating telemetry data")
+    print("Updating telemetry data")
     return telemetry_data_dict
 
 @callback(
     Output('apid-selection', 'options'),
     Output('space-packets-data', 'data'),
-    Output('fields-selection', 'value'),
     Input('dump-file-selection', 'value'),
     State('main-telemetry-data', 'data'),
 )
@@ -139,59 +132,83 @@ def update_apids_available_and_space_packets_df(dump_file_selected, telemetry_da
     
     space_packets_df = telemetry_reader.get_space_packets_df_from_file(dump_file_selected, main_dd_df)
     available_apids = space_packets_df['apid'].unique()
+    available_apids_data_names = telemetry_reader.query_main_dd_df_for_apid_data_name(available_apids, main_dd_df)
+    apid_options = [{'label': data_name, 'value': apid} for apid, data_name in zip(available_apids, available_apids_data_names)]
     
     space_packets_dict = {
         "space_packets_df": space_packets_df.to_json(orient='split', date_format='iso')
     }
-    print("updating available_apids and space_packets_dict")
-    return available_apids, space_packets_dict, None
+    print("Updating available_apids and space_packets_dict")
+    return apid_options, space_packets_dict
 
 @callback(
-    Output('fields-selection', 'options'),
+    Output('fields-inputs', 'children'),
     Output('fields-apid-data', 'data'),
     Input('apid-selection', 'value'),
     State('space-packets-data', 'data'),   
     State('main-telemetry-data', 'data'),
     prevent_initial_call=True
 )
-def update_fields(apid_value, space_packets_dict ,telemetry_data_dict):
-    if (apid_value is None) or (space_packets_dict is None) or (telemetry_data_dict is None):
+def update_fields_teste(apid_list, space_packets_dict ,telemetry_data_dict):
+    if (apid_list is None) or (space_packets_dict is None) or (telemetry_data_dict is None):
         raise PreventUpdate
-    
+
     main_dd_df = pd.read_json(telemetry_data_dict["main_dd_df"], orient = 'split')
     space_packets_df = pd.read_json(space_packets_dict["space_packets_df"], orient = 'split')
+    
+    fields_apid_dict = {}
+    fields_inputs_children = []
+    for i, apid in enumerate(apid_list):
+        fields_apid_df = telemetry_reader.get_specific_apid_df_from_telemetry_df(apid, space_packets_df, main_dd_df)
+        fields_available = [k for k in list(fields_apid_df.columns) if k != 'secondary_header']
 
-    fields_apid_df = telemetry_reader.get_specific_apid_df_from_telemetry_df(apid_value, space_packets_df, main_dd_df)
-    fields_available = [k for k in list(fields_apid_df.columns) if k != 'secondary_header']
+        fields_apid_dict[f"{apid}_fields_df"] = fields_apid_df.reset_index().to_json(orient='split', date_format='iso')
+        apid_name = telemetry_reader.query_main_dd_df_for_apid_data_name(apid, main_dd_df)
+        
+        inner_children = html.Div([
+            html.Div(f"Select {apid_name} Fields to Display", className="single-input-label"),
+            dcc.Dropdown(
+                id={"type": "fields-selection-teste", "index":i }, 
+                options = fields_available,
+                searchable=True, 
+                multi=True,
+                maxHeight=300,
+                persistence=True
+            ),
+        ], className="single-input-div")
+        fields_inputs_children.append(inner_children)
 
-    fields_apid_dict = {
-        "fields_apid_df": fields_apid_df.reset_index().to_json(orient='split', date_format='iso')
-    }
-
-    return fields_available, fields_apid_dict
+    return fields_inputs_children, fields_apid_dict
 
 @callback(
     Output('main-dashboard-content', 'children'),
-    Input('fields-selection', 'value'),
+    Input({'type':'fields-selection-teste', "index": ALL}, "value"),
     State('apid-selection', 'value'),
     State('fields-apid-data', 'data'),
     prevent_initial_call=True
 )
-def update_graph(fields, apid, fields_apid_dict):
-    if (fields is None) or (apid is None) or (len(fields) == 0) or (fields_apid_dict is None):
+def update_graphs_teste(fields, apid_list, fields_apid_dict):
+    if (fields is None) or (apid_list is None) or (len(fields) == 0) or (fields_apid_dict is None):
         return html.Div([])
-    
-    fields_apid_df = pd.read_json(fields_apid_dict["fields_apid_df"], orient = 'split')
-    if 'secondary_header' in fields_apid_df.columns:
-        fields_apid_df = fields_apid_df.set_index('secondary_header')
-        fields_apid_df = fields_apid_df.loc['2020-01-01':].dropna(axis=1)
-    
+
     field_cards = []
-    for field in fields:
-        field_card = mission_dash_components.make_card_from_series(fields_apid_df, field)
-        field_cards.append(field_card)
+    for i, apid in enumerate(apid_list):
+        
+        field_list_for_apid = fields[i]
+        
+        if field_list_for_apid is None:
+            pass
+        else:
+            fields_apid_df = pd.read_json(fields_apid_dict[f"{apid}_fields_df"], orient = 'split')
+            if 'secondary_header' in fields_apid_df.columns:
+                fields_apid_df = fields_apid_df.set_index('secondary_header')
+                fields_apid_df = fields_apid_df.loc['2020-01-01':].dropna(axis=1) #This will not be needed in future, it is due to a reset problem in the Sports Satellite.
+        
+            for field in field_list_for_apid:
+                field_card = mission_dash_components.make_card_from_series(fields_apid_df, field)
+                field_cards.append(field_card)
     
     return field_cards
-   
+ 
 if __name__ == '__main__':
     app.run_server(debug=True, host='0.0.0.0', port=8050)
