@@ -1,4 +1,5 @@
 
+import copy
 import pandas as pd
 
 from DataConverter import DataConverter
@@ -29,17 +30,20 @@ class TelemetryDataReader:
         packets = self.read_through_hex_str(hex_data)
         return packets
 
-    def create_df_from_space_packets(self, packets: list[dict], transform_binary_values: bool = True) -> pd.DataFrame:
+    def create_df_from_space_packets(self, packets: list[dict], main_dd_df: pd.DataFrame = None,transform_binary_values: bool = True) -> pd.DataFrame:
         """Allows the space packets to be displayes as df format, also it performs transformations to the binary values of
         a space packet. When asked to transform for binary values the function will also adjust for segmented packets."""
         df = pd.DataFrame(packets)
         if transform_binary_values:
+            assert main_dd_df is not None, "For transformation main_dd_df must be inputed!"
             df['version_number'] = df['version_number'].apply(lambda x: int(x, 2))
             df['apid'] = df['apid'].apply(lambda x: hex(int(x, 2)))
             df['seq_flags'] = df['seq_flags'].apply(lambda x: hex(int(x, 2)))
             df['pkt_data_length'] = df['pkt_data_length'].apply(lambda x: hex(int(x, 2)))
             df['secondary_header'] = df['secondary_header'].apply(self.data_converter.convert_64bit_binary_to_datetime)
             df = self.adjust_df_for_segmented_packets(df)
+            df = self.adjust_df_for_calculated_data(df, main_dd_df)
+        
         return df
     
     def adjust_df_for_segmented_packets(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -152,3 +156,109 @@ class TelemetryDataReader:
         new_pointer = pointer+number_of_bits
 
         return component_binary, new_pointer
+    
+    def adjust_df_for_calculated_data(self, df_in: pd.DataFrame, main_dd_df: pd.DataFrame) -> pd.DataFrame:
+
+        assert not df_in.empty, "Empty df as input"
+        assert all(column in df_in.columns for column in ['apid', 'data']), "Columns 'apid' and/or 'data' not found in DataFrame"
+
+        df = df_in.copy(deep=True)
+        new_fields = []
+        for i in range(0, len(df)):
+            apid = df.iloc[i,:]['apid']
+            binary_data = df.iloc[i,:]['data']
+            new_fields.append(self.calculate_data_conversion(apid, binary_data, main_dd_df))
+
+        assert len(df) == len(new_fields)
+
+        df['data_transformed'] = new_fields
+        return df
+    
+    def calculate_data_conversion(self, apid:str, binary_data: int, main_dd_df: pd.DataFrame):
+        """Method that given a apid, the corresponding binary_data for this apid and the main_df with the apid
+        data types, it returns the calculated values in a data packet dict format"""
+        formats_to_implement = []
+
+        new_data_packets = copy.deepcopy(main_dd_df.query(f"""apid == '{apid}'""")['data_packets'].item())
+        pointer = 0
+        for single_data_field in new_data_packets:
+            bit_length = single_data_field['lenght(bits)']
+            if (bit_length is None) or (bit_length == 'N/A'):
+                bit_length = 0
+            elif bit_length >= len(binary_data) or single_data_field['field'] == 'Total':
+                break
+            else:
+                bit_length = int(bit_length)
+        
+            binary_slice = binary_data[pointer:(pointer+bit_length)]
+            
+            assert len(binary_slice) == bit_length, f"{single_data_field}"
+            
+            data_format = single_data_field['format']
+            try:
+                transformed_value = self.data_converter.binary_to_value(binary_slice, data_format, single_data_field['conversion'])
+            except ValueError:
+                print(f"Implement this format: {data_format} - {binary_slice}")
+                if data_format not in formats_to_implement:
+                    formats_to_implement.append(data_format)
+                transformed_value = None
+
+            single_data_field['value'] = transformed_value
+            pointer += bit_length
+
+        if len(formats_to_implement) > 0:
+            print(f"These data formats need to be implemented {formats_to_implement} !")
+
+        return new_data_packets
+    
+    def get_specific_apid_df_from_telemetry_df(self, apid:str, df_in: pd.DataFrame, main_dd_df: pd.DataFrame):
+        """Method that given a specific apid, it will query the telemetry provided df and return another
+        df with each field of the apid in a column."""
+        assert apid in df_in['apid'].unique()
+        
+        apid_linked_dd = main_dd_df.query(f"""apid == '{apid}'""")['data_packets'].item()
+        inner_df = df_in.query(f"""apid == '{apid}'""").copy(deep=True)
+        
+        new_df = inner_df['secondary_header'].reset_index().copy(deep=True)
+        current_none_field = ''
+        for field_id in range(0, len(apid_linked_dd)):
+            y_aux = []
+            for i in range(0, len(inner_df)):
+                field_data = (inner_df.iloc[i, :]['data_transformed'])[field_id]
+                if self._check_all_values_none(field_data, exclude_keys=['field']):
+                    current_none_field = field_data['field']
+                    
+                field_name = field_data['field']
+                field_unit = field_data['unit']
+            
+                if 'value' in field_data.keys():
+                    y_aux.append(field_data['value'])
+            if (field_name != 'Total') and not self._check_all_values_none(y_aux):
+                if current_none_field == '':
+                    column_name = f"{field_name} ({field_unit})"
+                else:
+                    column_name = f"{current_none_field} {field_name} ({field_unit})"
+                new_df[column_name] = y_aux
+
+        if self.is_datetime_column(new_df, 'secondary_header'):
+            new_df = new_df.rename(columns={'secondary_header':'time'}).set_index('time')
+
+        return new_df.drop(columns=['index'])
+
+    def is_datetime_column(self, df: pd.DataFrame, column_name: str):
+        assert column_name in df.columns
+        return pd.api.types.is_datetime64_any_dtype(df[column_name])
+
+    def _check_all_values_none(self, data, exclude_keys=None) -> bool:
+        
+        if exclude_keys is None:
+            exclude_keys = []
+
+        if isinstance(data, dict):
+            is_empty = all(value is None for key, value in data.items() if key not in exclude_keys)
+        elif isinstance(data, list):
+            is_empty = all(value is None for value in data)
+        else:
+            raise NotImplementedError
+        
+        return is_empty

@@ -1,141 +1,197 @@
 from dash import Dash, html, dcc, callback, Output, Input, State
 from dash.exceptions import PreventUpdate
-import plotly.express as px
 import pandas as pd
-import copy
+
 from CatalogDataReader import CatalogDataReader
 from DataConverter import DataConverter
 from TelemetryDataReader import TelemetryDataReader
+from FileRepository import FileRepository
+from DashboardComponents import DashboardComponents as mission_dash_components
 
-MAIN_SPORT_DOCUMENT_FILE_PATH = 'SPORT_documents//sport_ttc_20220814.ods'
+CATALOG_FOLDER = "SPORT_documents"
+TELEMETRY_DUMP_FOLDER = "decoded_satcs_dump"
+
+catalog_repo = FileRepository(CATALOG_FOLDER)
+telemetry_repo = FileRepository(TELEMETRY_DUMP_FOLDER)
+
+MAIN_SPORT_DOCUMENT_FILE_NAME = 'sport_ttc_20220814.ods'
 
 telemetry_reader = TelemetryDataReader()
 catalog_data = CatalogDataReader()
 data_converter = DataConverter()
 
-main_tm_df = catalog_data.get_all_tms_on_the_document(MAIN_SPORT_DOCUMENT_FILE_PATH)
-main_dd_df = catalog_data.get_all_dds_from_document(MAIN_SPORT_DOCUMENT_FILE_PATH)
-
-telemetry_file_path = 'decoded_satcs_dump\\hk_vur_inst_only.out'
-df = telemetry_reader.get_space_packets_df_from_file(telemetry_file_path)
-
-formats_to_implement = []
-def calculate_data_conversion(apid:str, binary_data: int, main_dd_df: pd.DataFrame):
-
-    new_data_packets = copy.deepcopy(main_dd_df.query(f"""apid == '{apid}'""")['data_packets'].item())
-    pointer = 0
-    for single_data_field in new_data_packets:
-        bit_length = single_data_field['lenght(bits)']
-        if (bit_length is None) or (bit_length == 'N/A'):
-            bit_length = 0
-        elif bit_length >= len(binary_data) or single_data_field['field'] == 'Total':
-            break
-        else:
-            bit_length = int(bit_length)
-    
-        binary_slice = binary_data[pointer:(pointer+bit_length)]
-        
-        assert len(binary_slice) == bit_length, f"{single_data_field}"
-        
-        data_format = single_data_field['format']
-        try:
-            transformed_value = data_converter.binary_to_value(binary_slice, data_format, single_data_field['conversion'])
-        except ValueError:
-            print(f"Implement this format: {data_format} - {binary_slice}")
-            if data_format not in formats_to_implement:
-                formats_to_implement.append(data_format)
-            transformed_value = None
-
-        single_data_field['value'] = transformed_value
-        pointer += bit_length
-
-    return new_data_packets
-
-new_fields = []
-for i in range(0, len(df)):
-    apid = df.iloc[i,:]['apid']
-    binary_data = df.iloc[i,:]['data']
-    
-    new_fields.append(calculate_data_conversion(apid, binary_data, main_dd_df))
-
-assert len(df) == len(new_fields)
-
-df['data_transformed'] = new_fields
-available_apids = df['apid'].unique()
-
-apid_df_dict = dict()
-for apid in df['apid'].unique():
-    apid_linked_dd = main_dd_df.query(f"""apid == '{apid}'""")['data_packets'].item()
-    inner_df = df.query(f"""apid == '{apid}'""").copy(deep=True)
-    
-    new_df = inner_df['secondary_header'].reset_index().copy(deep=True)
-    for field_id in range(0, len(apid_linked_dd)):
-        y_aux = []
-        for i in range(0, len(inner_df)):
-            field_data = (inner_df.iloc[i, :]['data_transformed'])[field_id]
-
-            field_name = field_data['field']
-            field_unit = field_data['unit']
-
-            if 'value' in field_data.keys():
-                y_aux.append(field_data['value'])
-        if field_name != 'Total':
-            new_df[f"{field_name} ({field_unit}) {field_id}"] = y_aux
-
-    new_df = new_df.rename(columns={'secondary_header':'time'})
-    new_df = new_df.drop(columns='index').set_index('time')
-
-    apid_df_dict[apid] = new_df
-
-
 app = Dash(
     __name__,
-    assets_folder='assets'
+    assets_folder='assets',
+    title = "CEI Mission Dashboard"
 )
 
-app.layout = html.Div([
-    html.H1(
-        className='header-title',
-        children='Sports Mission Dashboard',
-        style={'textAlign':'center','color': '#FFFFFF'}
-    ),
-    dcc.Dropdown(available_apids, id='apid-selection'),
-    dcc.Dropdown(['n/a'], id='fields-selection', searchable=True),
-    dcc.Graph(id='graph-content')
-])
+header_layout = html.Div(
+    className='header-container',
+    children=[
+        html.Img(
+            src='/assets/cei_logo.png', 
+            className='dashboard-header-logo',
+        ),
+        html.H1(
+            className='dashboard-header-title',
+            children='Mission Data Dashboard',
+            style={'textAlign': 'center', 'color': '#FFFFFF', 'flexGrow': '1'}
+        ),
+        html.Div(className="dummy-header")
+    ],
+)
+
+upper_inputs_layout = html.Div([
+        dcc.Store(id = "main-telemetry-data"),
+        dcc.Store(id = "space-packets-data"),
+        dcc.Store(id = "fields-apid-data"),
+        html.Div([
+            html.Div("Catalog File", className="single-input-label"),
+            dcc.Dropdown(
+                id='catalog-selection', 
+                value = MAIN_SPORT_DOCUMENT_FILE_NAME,
+                options = [k for k in catalog_repo.list_files() if '.pdf' not in k],
+                searchable=True, 
+                disabled=True
+            ),
+        ], className="single-input-div"),
+        html.Div([
+            html.Div("Select Telemetry File", className="single-input-label"),
+            dcc.Dropdown(
+                id='dump-file-selection', 
+                options = telemetry_repo.list_files(),
+                searchable=True,
+            ),
+        ], className="single-input-div"),
+        html.Div([
+            html.Div("Select APID", className="single-input-label"),
+            dcc.Dropdown(
+                id='apid-selection', 
+                searchable=True,
+            ),
+        ], className="single-input-div"),
+    ], 
+    className="upper-dashboard-inputs"
+)
+
+lower_inputs_layout = html.Div([
+        html.Div([
+            html.Div("Select Fields to Display", className="single-input-label"),
+            dcc.Dropdown(
+                id='fields-selection', 
+                searchable=True, 
+                multi=True,
+                maxHeight=300 
+            ),
+        ], className="single-input-div"),
+    ], 
+    className="lower-dashboard-inputs"
+)
+
+inputs_layout = html.Div([
+    upper_inputs_layout,
+    lower_inputs_layout
+], className="dashboard-inputs")
+
+main_layout = html.Div([
+    html.Div(className="background-overlay"),
+    header_layout,
+    dcc.Loading(
+            [inputs_layout],
+            overlay_style={"visibility":"visible", "opacity": .1, "backgroundColor": "grey"},
+            className='gif-loading'
+        ),
+    html.Div(id="main-dashboard-content", className="main-content-div")
+], className="dashboard-div")
+
+app.layout = main_layout
+
+@callback(
+    Output('main-telemetry-data', 'data'),
+    Input('catalog-selection', 'value'),
+)
+def update_stored_data(catalog_file_name):
+    if catalog_file_name is None:
+        raise PreventUpdate
+
+    main_tm_df = catalog_data.get_all_tms_on_the_document(catalog_file_name)
+    main_dd_df = catalog_data.get_all_dds_from_document(catalog_file_name)
+
+    telemetry_data_dict = {
+        "main_tm_df": main_tm_df.to_json(orient='split', date_format='iso'),
+        "main_dd_df": main_dd_df.to_json(orient='split', date_format='iso')
+    }
+    print("updating telemetry data")
+    return telemetry_data_dict
+
+@callback(
+    Output('apid-selection', 'options'),
+    Output('space-packets-data', 'data'),
+    Output('fields-selection', 'value'),
+    Input('dump-file-selection', 'value'),
+    State('main-telemetry-data', 'data'),
+)
+def update_apids_available_and_space_packets_df(dump_file_selected, telemetry_data_dict):
+    if dump_file_selected is None or telemetry_data_dict is None:
+        raise PreventUpdate
+    main_dd_df = pd.read_json(telemetry_data_dict["main_dd_df"], orient = 'split')
+    
+    space_packets_df = telemetry_reader.get_space_packets_df_from_file(dump_file_selected, main_dd_df)
+    available_apids = space_packets_df['apid'].unique()
+    
+    space_packets_dict = {
+        "space_packets_df": space_packets_df.to_json(orient='split', date_format='iso')
+    }
+    print("updating available_apids and space_packets_dict")
+    return available_apids, space_packets_dict, None
 
 @callback(
     Output('fields-selection', 'options'),
+    Output('fields-apid-data', 'data'),
     Input('apid-selection', 'value'),
+    State('space-packets-data', 'data'),   
+    State('main-telemetry-data', 'data'),
     prevent_initial_call=True
 )
-def update_fields(apid_value):
-    if apid_value is None:
+def update_fields(apid_value, space_packets_dict ,telemetry_data_dict):
+    if (apid_value is None) or (space_packets_dict is None) or (telemetry_data_dict is None):
         raise PreventUpdate
-    apid_row = main_dd_df.query(f"""apid == '{apid_value}'""")
+    
+    main_dd_df = pd.read_json(telemetry_data_dict["main_dd_df"], orient = 'split')
+    space_packets_df = pd.read_json(space_packets_dict["space_packets_df"], orient = 'split')
 
-    possible_fields = []
-    for i, dict in enumerate(apid_row['data_packets'].item()):
-        field = dict['field']
-        unit = dict['unit']
-        if field == 'Total':
-            break
-        possible_fields.append(f"{field} ({unit}) {i}")
+    fields_apid_df = telemetry_reader.get_specific_apid_df_from_telemetry_df(apid_value, space_packets_df, main_dd_df)
+    fields_available = [k for k in list(fields_apid_df.columns) if k != 'secondary_header']
 
-    return possible_fields
+    fields_apid_dict = {
+        "fields_apid_df": fields_apid_df.reset_index().to_json(orient='split', date_format='iso')
+    }
+
+    return fields_available, fields_apid_dict
 
 @callback(
-    Output('graph-content', 'figure'),
+    Output('main-dashboard-content', 'children'),
     Input('fields-selection', 'value'),
     State('apid-selection', 'value'),
+    State('fields-apid-data', 'data'),
     prevent_initial_call=True
 )
-def update_graph(field, apid):
-    if field is None or apid is None:
-        raise PreventUpdate
-    plot_df = apid_df_dict[apid].loc['2020-01-01':].dropna(axis=1)
-
-    return px.line(x =plot_df.index, y=plot_df[field])
-
+def update_graph(fields, apid, fields_apid_dict):
+    if (fields is None) or (apid is None) or (len(fields) == 0) or (fields_apid_dict is None):
+        return html.Div([])
+    
+    fields_apid_df = pd.read_json(fields_apid_dict["fields_apid_df"], orient = 'split')
+    if 'secondary_header' in fields_apid_df.columns:
+        fields_apid_df = fields_apid_df.set_index('secondary_header')
+        fields_apid_df = fields_apid_df.loc['2020-01-01':].dropna(axis=1)
+    
+    field_cards = []
+    for field in fields:
+        field_card = mission_dash_components.make_card_from_series(fields_apid_df, field)
+        field_cards.append(field_card)
+    
+    return field_cards
+   
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run_server(debug=True, host='0.0.0.0', port=8050)
