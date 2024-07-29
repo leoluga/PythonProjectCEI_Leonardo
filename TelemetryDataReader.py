@@ -1,7 +1,7 @@
 
 import copy
 import pandas as pd
-
+import numpy as np
 from DataConverter import DataConverter
 from SpacePacketDefinitions import SpacePacketDefinitions
 from FileRepository import FileRepository
@@ -43,6 +43,7 @@ class TelemetryDataReader:
             df['secondary_header'] = df['secondary_header'].apply(self.data_converter.convert_64bit_binary_to_datetime)
             df = self.adjust_df_for_segmented_packets(df)
             df = self.adjust_df_for_calculated_data(df, main_dd_df)
+            df = df.dropna(axis=0)
         
         return df
     
@@ -177,22 +178,31 @@ class TelemetryDataReader:
     def calculate_data_conversion(self, apid:str, binary_data: int, main_dd_df: pd.DataFrame):
         """Method that given a apid, the corresponding binary_data for this apid and the main_df with the apid
         data types, it returns the calculated values in a data packet dict format"""
-        formats_to_implement = []
 
+        apid_available =  apid in main_dd_df['apid'].unique()
+        if not apid_available:
+            print(f"This apid: {apid} needs to be added to catalog!")
+            return np.nan
+
+        formats_to_implement = []
         new_data_packets = copy.deepcopy(main_dd_df.query(f"""apid == '{apid}'""")['data_packets'].item())
         pointer = 0
         for single_data_field in new_data_packets:
             bit_length = single_data_field['lenght(bits)']
             if (bit_length is None) or (bit_length == 'N/A'):
                 bit_length = 0
-            elif bit_length >= len(binary_data) or single_data_field['field'] == 'Total':
+            elif single_data_field['field'] == 'Total':
                 break
+            elif (bit_length == 'Varies'):
+                bit_length = len(binary_data)
             else:
                 bit_length = int(bit_length)
         
+            if bit_length > len(binary_data):
+                break
+
             binary_slice = binary_data[pointer:(pointer+bit_length)]
-            
-            assert len(binary_slice) == bit_length, f"{single_data_field}"
+            assert len(binary_slice) == bit_length, f"Check this single field: {single_data_field}"
             
             data_format = single_data_field['format']
             try:

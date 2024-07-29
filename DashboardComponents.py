@@ -1,6 +1,8 @@
 from dash import html, dcc
 import plotly.graph_objects as go
 import pandas as pd
+
+from dash_utils import make_ag_grid
 class DashboardComponents:
 
     @staticmethod
@@ -16,6 +18,58 @@ class DashboardComponents:
 
         return card_with_title
     
+    @staticmethod
+    def ag_grid_inputs_from_historical_df(df: pd.DataFrame):
+        
+        column_defs = []
+        for column in df.columns:
+            column_defs.append({'field':column})
+        print(column_defs)
+        main_dict = {
+            "df": df,
+            "col_def": column_defs,
+            "row_style": None
+        }
+        ag_grid = make_ag_grid(
+            table_id='history-table-cei',
+            main_dict=main_dict,
+            wrap_header=True,
+            ag_grid_paginated=True
+        )
+
+        ag_grid_card = html.Div([
+            html.Div("Table of Historical Values", className="main-card-label"),
+            html.Div([ag_grid], className="table-body")
+        ], className="table-card")
+
+        return ag_grid_card
+
+    @staticmethod
+    def ag_grid_inputs_from_last_values_df(df: pd.DataFrame):
+        
+        column_defs = []
+        for column in df.columns:
+            column_defs.append({'field':column})
+        print(column_defs)
+        main_dict = {
+            "df": df,
+            "col_def": column_defs,
+            "row_style": None
+        }
+        ag_grid = make_ag_grid(
+            table_id='last-values-table-cei',
+            main_dict=main_dict,
+            wrap_header=True,
+            ag_grid_paginated=False
+        )
+
+        ag_grid_card = html.Div([
+            html.Div("Last Received Values", className="main-card-label"),
+            html.Div([ag_grid], className="last-table-body")
+        ], className="last-table-card")
+
+        return ag_grid_card
+
     @staticmethod
     def make_plotly_card(fig: go.Figure, id_card: str, class_name_str = "card-body") -> html.Div:
         dcc_graph = dcc.Graph(id = id_card, figure = fig)

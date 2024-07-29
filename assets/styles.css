@@ -1,3 +1,8 @@
+
+@font-face {
+    font-family: 'GoodTimes';
+    src: url('/assets/good_times_rg.otf') format('opentype');
+}
 body {
     padding: 0;
     margin: 0;
@@ -21,14 +26,9 @@ body {
     pointer-events: none;
 }
 
-@font-face {
-    font-family: 'GoodTimes';
-    src: url('/assets/good_times_rg.otf') format('opentype');
-}
-
 .header-container {
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
@@ -76,20 +76,23 @@ h1 {
 }
 
 .dashboard-inputs {
-    margin: 10px;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    margin-left: 0px;
     padding: 10px;
     border-radius: 5px;
     display: flex;
     flex-direction: column;
     flex-wrap: wrap;
-    justify-content: space-around;
-    gap: 2px;
+    justify-content: flex-start;
+    gap: 10px;
     background-color: rgba(0, 0, 0, 0.5);
     max-width: 300px;
 }
 .dashboard-inputs:hover{
-    box-shadow: 0 4px 8px 0 rgba(8, 128, 176, 0.628);
-    box-shadow: 0 8px 16px 0 rgba(158, 240, 246, 0.3);
+    box-shadow: 0 4px 8px 0 rgba(3, 61, 83, 0.769);
+    box-shadow: 0 8px 16px 0 rgba(2, 75, 80, 0.3);
 }
 
 .upper-dashboard-inputs{
@@ -140,14 +143,60 @@ h1 {
     background-color: aquamarine;
 }
 
-.main-content-div{
+.main-content-div-plots{
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     flex-wrap: wrap;
     margin: 5px;
-    justify-content: space-around;
-    gap: 2px;
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 10px;
+    margin-left: 350px;
+    margin-top: 20px;   
+    width: 30%;
 }
+
+.main-content-div-tables{
+    display: flex;
+    flex-direction: column;
+    flex-wrap: wrap;
+    margin: 5px;
+    justify-content: flex-start;
+    gap: 20px;
+    width: 75%;
+}
+
+.main-content-div-tables-inner{
+    display: flex;
+    flex-direction: column;
+    flex-wrap: wrap;
+    margin: 5px;
+    justify-content: flex-start;
+    gap: 10px;
+}
+
+.table-card{
+    padding: 0.5rem;
+    border-radius: 5px;
+    background-color: rgba(0, 0, 0, 0.7);
+}
+
+.table-body{
+    width: 100%;
+    
+}
+
+.last-table-card{
+    padding: 0.5rem;
+    border-radius: 5px;
+    background-color: rgba(0, 0, 0, 0.7);
+}
+
+.last-table-body{
+    width: 100%;
+    
+}
+
 
 .main-card {
     display: flex;
@@ -194,9 +243,10 @@ h1 {
     height: 80px; 
     display: block;
     margin: 0 auto;
-    position: absolute;
+    position: fixed;
     top: 50%;
-    left: 50%;
+    left: 50%; 
     transform: translate(-50%, -50%);
     opacity: 1;
+    z-index: 3;
 }

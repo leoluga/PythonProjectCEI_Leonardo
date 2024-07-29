@@ -1,6 +1,7 @@
 from typing import Optional, Union 
 import dash_ag_grid as dag 
 import pandas as pd 
+
 STATS_ROW_STYLE = { 
     "styleConditions": [ 
         { 

@@ -2,6 +2,7 @@ from dash import Dash, html, dcc, callback, Output, Input, State, ALL
 from dash.exceptions import PreventUpdate
 
 import pandas as pd
+import argparse
 
 from CatalogDataReader import CatalogDataReader
 from DataConverter import DataConverter
@@ -69,7 +70,7 @@ upper_inputs_layout = html.Div([
             html.Div("Select APID", className="single-input-label"),
             dcc.Dropdown(
                 id='apid-selection', 
-                multi=True
+                multi=True,
             ),
         ], className="single-input-div"),
     ], 
@@ -82,20 +83,21 @@ lower_inputs_layout = html.Div(
 )
 
 inputs_layout = html.Div([
+    header_layout,
     upper_inputs_layout,
     lower_inputs_layout
 ], className="dashboard-inputs")
 
 main_layout = html.Div([
     html.Div(className="background-overlay"),
-    header_layout,
     html.Div([
         dcc.Loading(
                 [inputs_layout],
                 overlay_style={"visibility":"visible", "opacity": .1, "backgroundColor": "grey"},
                 className='gif-loading'
             ),
-        html.Div(id="main-dashboard-content", className="main-content-div"),
+        html.Div(id="main-dashboard-plots", className="main-content-div-plots"),
+        html.Div(id="main-dashboard-tables", className="main-content-div-tables"),
     ], className = "inputs-and-content-div"),
 ], className="dashboard-div")
 
@@ -172,7 +174,7 @@ def update_fields_teste(apid_list, space_packets_dict ,telemetry_data_dict):
                 options = fields_available,
                 searchable=True, 
                 multi=True,
-                maxHeight=300,
+                maxHeight=400,
                 persistence=True
             ),
         ], className="single-input-div")
@@ -181,7 +183,8 @@ def update_fields_teste(apid_list, space_packets_dict ,telemetry_data_dict):
     return fields_inputs_children, fields_apid_dict
 
 @callback(
-    Output('main-dashboard-content', 'children'),
+    Output('main-dashboard-plots', 'children'),
+    Output('main-dashboard-tables', 'children'),
     Input({'type':'fields-selection-teste', "index": ALL}, "value"),
     State('apid-selection', 'value'),
     State('fields-apid-data', 'data'),
@@ -189,26 +192,47 @@ def update_fields_teste(apid_list, space_packets_dict ,telemetry_data_dict):
 )
 def update_graphs_teste(fields, apid_list, fields_apid_dict):
     if (fields is None) or (apid_list is None) or (len(fields) == 0) or (fields_apid_dict is None):
-        return html.Div([])
+        return html.Div([]), html.Div([])
 
     field_cards = []
+    fields_selected_df = pd.DataFrame()
     for i, apid in enumerate(apid_list):
         
         field_list_for_apid = fields[i]
-        
+            
         if field_list_for_apid is None:
             pass
         else:
             fields_apid_df = pd.read_json(fields_apid_dict[f"{apid}_fields_df"], orient = 'split')
+            fields_apid_df = fields_apid_df[field_list_for_apid]
             if 'secondary_header' in fields_apid_df.columns:
                 fields_apid_df = fields_apid_df.set_index('secondary_header')
                 fields_apid_df = fields_apid_df.loc['2020-01-01':].dropna(axis=1) #This will not be needed in future, it is due to a reset problem in the Sports Satellite.
-        
+            
+            fields_selected_df = pd.concat([fields_selected_df,fields_apid_df], axis=1)
+
             for field in field_list_for_apid:
                 field_card = mission_dash_components.make_card_from_series(fields_apid_df, field)
                 field_cards.append(field_card)
     
-    return field_cards
- 
+    history_of_apids_card = mission_dash_components.ag_grid_inputs_from_historical_df(fields_selected_df)
+    
+    last_fields_values_df = fields_selected_df.apply(lambda col: col.loc[col.last_valid_index()])
+    last_fields_values_df = last_fields_values_df.reset_index()
+    last_fields_values_df.columns = ['Fields','Last Value']
+    last_fields_ag_grid_card = mission_dash_components.ag_grid_inputs_from_last_values_df(last_fields_values_df)
+    tables_div = html.Div([last_fields_ag_grid_card,history_of_apids_card], className="main-content-div-tables-inner")
+    return field_cards, tables_div
+
+def main():
+    parser = argparse.ArgumentParser(description='Run the Dash app.')
+    parser.add_argument('--host', type=str, default='127.0.0.1', help='Host address')
+    parser.add_argument('--port', type=int, default=8050, help='Port number')
+    parser.add_argument('--debug', action='store_true', help='Run the app in debug mode')
+    args = parser.parse_args()
+
+    app.run_server(host=args.host, port=args.port, debug=args.debug)
+
+
 if __name__ == '__main__':
-    app.run_server(debug=True, host='0.0.0.0', port=8050)
+    main()

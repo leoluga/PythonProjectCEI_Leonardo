@@ -11,9 +11,11 @@ dash==2.17.1
 dash-core-components==2.0.0
 dash-html-components==2.0.0
 dash-table==5.0.0
+dash_ag_grid==31.2.0
 dash_mantine_components==0.14.3
 debugpy==1.8.2
 decorator==5.1.1
+defusedxml==0.7.1
 executing==2.0.1
 ezodf==0.3.2
 Flask==3.0.3
@@ -28,12 +30,14 @@ Jinja2==3.1.4
 jupyter_client==8.6.2
 jupyter_core==5.7.2
 kiwisolver==1.4.5
+lml==0.1.0
 lxml==5.2.2
 MarkupSafe==2.1.5
 matplotlib==3.9.0
 matplotlib-inline==0.1.7
 nest-asyncio==1.6.0
 numpy==2.0.0
+odfpy==1.4.1
 packaging==24.1
 pandas==2.2.2
 parso==0.8.4
@@ -43,6 +47,8 @@ plotly==5.22.0
 prompt_toolkit==3.0.47
 psutil==6.0.0
 pure-eval==0.2.2
+pyexcel-io==0.6.6
+pyexcel-ods==0.6.0
 Pygments==2.18.0
 pyparsing==3.1.2
 python-dateutil==2.9.0.post0
