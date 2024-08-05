@@ -34,7 +34,8 @@ class DashboardComponents:
             table_id='history-table-cei',
             main_dict=main_dict,
             wrap_header=True,
-            ag_grid_paginated=True
+            ag_grid_paginated=True,
+            page_size=20
         )
 
         ag_grid_card = html.Div([
