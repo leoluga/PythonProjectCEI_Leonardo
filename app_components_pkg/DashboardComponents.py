@@ -2,7 +2,8 @@ from dash import html, dcc
 import plotly.graph_objects as go
 import pandas as pd
 
-from dash_utils import make_ag_grid
+from app_components_pkg.dash_utils import make_ag_grid
+
 class DashboardComponents:
 
     @staticmethod

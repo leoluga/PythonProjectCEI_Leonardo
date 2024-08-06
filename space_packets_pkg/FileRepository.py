@@ -2,7 +2,6 @@ import os
 import shutil
 import pandas as pd
 import ezodf
-from pyexcel_ods import get_data
 
 class FileRepository:
     def __init__(self, folder_path):

@@ -2,9 +2,9 @@
 import copy
 import pandas as pd
 import numpy as np
-from DataConverter import DataConverter
-from SpacePacketDefinitions import SpacePacketDefinitions
-from FileRepository import FileRepository
+from space_packets_pkg.DataConverter import DataConverter
+from space_packets_pkg.SpacePacketDefinitions import SpacePacketDefinitions
+from space_packets_pkg.FileRepository import FileRepository
 
 TELEMETRY_FOLDER_PATH = "decoded_satcs_dump"
 class TelemetryDataReader:

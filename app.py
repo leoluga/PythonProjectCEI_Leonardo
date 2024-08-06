@@ -4,11 +4,12 @@ from dash.exceptions import PreventUpdate
 import pandas as pd
 import argparse
 
-from CatalogDataReader import CatalogDataReader
-from DataConverter import DataConverter
-from TelemetryDataReader import TelemetryDataReader
-from FileRepository import FileRepository
-from DashboardComponents import DashboardComponents as mission_dash_components
+from space_packets_pkg.CatalogDataReader import CatalogDataReader
+from space_packets_pkg.DataConverter import DataConverter
+from space_packets_pkg.TelemetryDataReader import TelemetryDataReader
+from space_packets_pkg.FileRepository import FileRepository
+
+from app_components_pkg.DashboardComponents import DashboardComponents as mission_dash_components
 
 CATALOG_FOLDER = "SPORT_documents"
 TELEMETRY_DUMP_FOLDER = "decoded_satcs_dump"

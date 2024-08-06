@@ -1,8 +1,8 @@
 import pandas as pd
 import numpy as np
 
-from SpacePacketDefinitions import SpacePacketDefinitions
-from FileRepository import FileRepository
+from space_packets_pkg.SpacePacketDefinitions import SpacePacketDefinitions
+from space_packets_pkg.FileRepository import FileRepository
 
 DOCUMENT_FOLDER_PATH = "SPORT_documents"
 class CatalogDataReader:
@@ -59,7 +59,6 @@ class CatalogDataReader:
 
         return main_tm_df
     
-
     def read_dd_sheet_from_document(self, file_name: str, sheet_name: str, main_tm_df: pd.DataFrame):
 
         df = self.file_repo.read_ods_document_by_sheet(file_name, sheet_name)
